@@ -43,10 +43,10 @@ class Interface:
         self.d1.grid(row=2, column=1, columnspan=2, sticky=E, padx=40)
 
     def create_buttons(self):
-        b1 = Button(self.frame, text = "Zadržavanje FB domene", activebackground="#83868a", activeforeground="white", command=lambda : Methods.zadr_domene(self, self.output_path + '1a_Input_Zadrzavanje domene/original_file.xml', self.output_path + '1b_Output_Zadrzavanje domene/'))
+        b1 = Button(self.frame, text = "Zadržavanje FB domene", activebackground="#83868a", activeforeground="white", command=lambda : Methods.zadr_domene(self, self.output_path + '1a_Input_Zadrzavanje domene/original_file_1.xml', self.output_path + '1b_Output_Zadrzavanje domene/'))
         b2 = Button(self.frame, text = "Statistička validacija", activebackground="#83868a", activeforeground="white", command=lambda : Methods.stat_validacija(self))
-        b3 = Button(self.frame, text = "Smanjenje za AMR na svim CNEC", state = "disabled") 
-        b4 = Button(self.frame, text = "Smanjenje za AMR na presolved CNEC", state = "disabled")
+        b3 = Button(self.frame, text = "Smanjenje za AMR na svim CNEC", activebackground="#83868a", activeforeground="white", command=lambda : Methods.smanjenjeAllCNEC(self)) 
+        b4 = Button(self.frame, text = "Smanjenje za AMR na presolved CNEC", activebackground="#83868a", activeforeground="white", command=lambda : Methods.smanjenjePresolvedCNEC(self))
 
         b1.grid(row=3, column=1, columnspan=4, ipadx=50, ipady=10, padx=40)
         b2.grid(row=4, column=1, columnspan=4, ipadx=60, ipady=10)
@@ -113,7 +113,7 @@ class Methods(Interface):
             
             tree.write(self.filename, encoding="utf-8", xml_declaration=True)
             
-            messagebox.showinfo("Uspjeh!", "Datoteka: " + self.filename + "\n je uspješno stvorena u output mapi." + self.date_slash)
+            messagebox.showinfo("Uspjeh!", "Datoteka: " + self.filename + "\n je uspješno stvorena u output mapi." + '\n\nZbog veličine, učitavanje podataka može potrajati nekoliko minuta.')
 
     def stat_validacija(self):
         
@@ -213,14 +213,141 @@ class Methods(Interface):
 
 
     def smanjenjeAllCNEC(self):
-        dir='C:/Users/vsodan2/Desktop/INPUTS_OUTPUTS/3a_Input_Smanjenje za AMR na svim CNEC/'
+        
+        input_folder = self.output_path + '1a_Input_Zadrzavanje domene/original_file_3-4.xml'
+        output_folder = self.output_path + '3b_Output_Smanjenje za AMR na svim CNEC/'
+
+        Methods.zadr_domene(self, input_folder, output_folder)
+
+        orig_tree = ET.parse(self.filename)
+        root=orig_tree.getroot()
+        root.set('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance')
+        root.set('xmlns:xsd', 'http://www.w3.org/2001/XMLSchema')
+
+        avs = root.find('{*}AdjustmentValues')
+
+        dir = self.output_path + '3a_Input_Smanjenje za AMR na svim CNEC/'
         for file in glob.glob1(dir, '*.zip'):
             with zipfile.ZipFile(dir + file, 'r') as zip_ref:
                 zip_ref.extractall(dir)
 
+        file_list=[files for files in glob.glob1(dir, "*.xml")]
+
+        for i in range(0, len(file_list)):
+            tree = ET.parse(dir + file_list[i])
+            time = tree.find('{*}FlowBasedDomainTimeInterval').get('v')
+            start = tree.find('.//{*}FlowBasedDomainTimeSeries/{*}Period/{*}Interval/{*}FlowBasedDomain/{*}constraintResults')
+            for cr in start.findall('{*}constraintResult'):
+                if cr.get('id').startswith('HR_'):
+                    id = cr.get('id')
+                    cb = cr.find('{*}criticalBranch')
+                    name = cb.find('{*}monitoredBranch').get('name')
+                    try:
+                        amr = cb.find('{*}amr').text
+                        cnec = cb.find('{*}CNEC').text
+                        mnec = cb.find('{*}MNEC').text
+                    except:
+                        pass
+
+                    if (int(amr)>0 and (cnec != 'false' or mnec != 'false')):
+                        av = ET.SubElement(avs, 'AdjustmentValue')
+                        av.set('name', name)
+                        av.set('id', id)
+                        ti = ET.SubElement(av, 'timeInterval')
+                        ti.set('v', time)
+                        iva = ET.SubElement(av, 'IVA')
+                        iva.text = amr
+                        jst = ET.SubElement(av, 'justification')
+                        jst.text = 'IVA applied due to unsolvable overloads'
+        
+
+        dateinterval = datetime.strptime(self.date_slash, '%Y-%m-%d')
+        for start in avs.findall('{*}AdjustmentValue'):
+            for constraint in start.findall('{*}timeInterval'):
+                modified_date = dateinterval + timedelta(days=-1)
+                modified_date = str(modified_date).split(' ')
+                timeinterval = constraint.get('v')
+                timeinterval = timeinterval.split('/')
+                timeinterval1 = timeinterval[0].split('T')
+                timeinterval2 = timeinterval[1].split('T')
+                if not timeinterval1[1].startswith('23'):
+                    modified_date[0] = self.date_slash
+                constraint.set('v', str(modified_date[0]) + 'T'  + timeinterval1[1] + '/' + self.date_slash  + 'T'+ timeinterval2[1])
+
+
+        ET.indent(orig_tree, space=' ', level=0)
+        orig_tree.write(self.filename, encoding="utf-8", xml_declaration=True)
+
+        messagebox.showinfo("Uspjeh!", "Proces završio, rezultati su dostupni!")
+
+
 
     def smanjenjePresolvedCNEC(self):
-        pass
+
+        input_folder = self.output_path + '1a_Input_Zadrzavanje domene/original_file_3-4.xml'
+        output_folder = self.output_path + '4b_Output_Smanjenje za AMR na presolved CNEC/'
+
+        Methods.zadr_domene(self, input_folder, output_folder)
+
+        orig_tree = ET.parse(self.filename)
+        root=orig_tree.getroot()
+        root.set('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance')
+        root.set('xmlns:xsd', 'http://www.w3.org/2001/XMLSchema')
+
+        avs = root.find('{*}AdjustmentValues')
+
+        dir = self.output_path + '4a_Input_Smanjenje za AMR na presolved CNEC/'
+        for file in glob.glob1(dir, '*.zip'):
+            with zipfile.ZipFile(dir + file, 'r') as zip_ref:
+                zip_ref.extractall(dir)
+
+        file_list=[files for files in glob.glob1(dir, "*.xml")]
+        for i in range(0, len(file_list)):
+            tree = ET.parse(dir + file_list[i])
+            time = tree.find('{*}FlowBasedDomainTimeInterval').get('v')
+            start = tree.find('.//{*}FlowBasedDomainTimeSeries/{*}Period/{*}Interval/{*}FlowBasedDomain/{*}constraintResults')
+            for cr in start.findall('{*}constraintResult'):
+                if cr.get('id').startswith('HR_'):
+                    rg = cr.find('.//{*}domainLimit/{*}region').text
+                    tso = cr.find('.//{*}domainLimit/{*}tso').text
+                    id = cr.get('id')
+                    cb = cr.find('{*}criticalBranch')
+                    name = cb.find('{*}monitoredBranch').get('name')
+                    try:
+                        amr = cb.find('{*}amr').text
+                        cnec = cb.find('{*}CNEC').text
+                        mnec = cb.find('{*}MNEC').text
+                    except:
+                        pass
+
+                    if (int(amr)>0 and (cnec != 'false' or mnec != 'false') and (rg != 'false' or tso != 'false')):
+                        av = ET.SubElement(avs, 'AdjustmentValue')
+                        av.set('name', name)
+                        av.set('id', id)
+                        ti = ET.SubElement(av, 'timeInterval')
+                        ti.set('v', time)
+                        iva = ET.SubElement(av, 'IVA')
+                        iva.text = amr
+                        jst = ET.SubElement(av, 'justification')
+                        jst.text = 'IVA applied due to unsolvable overloads'
+
+        dateinterval = datetime.strptime(self.date_slash, '%Y-%m-%d')
+        for start in avs.findall('{*}AdjustmentValue'):
+            for constraint in start.findall('{*}timeInterval'):
+                modified_date = dateinterval + timedelta(days=-1)
+                modified_date = str(modified_date).split(' ')
+                timeinterval = constraint.get('v')
+                timeinterval = timeinterval.split('/')
+                timeinterval1 = timeinterval[0].split('T')
+                timeinterval2 = timeinterval[1].split('T')
+                if not timeinterval1[1].startswith('23'):
+                    modified_date[0] = self.date_slash
+                constraint.set('v', str(modified_date[0]) + 'T'  + timeinterval1[1] + '/' + self.date_slash  + 'T'+ timeinterval2[1])
+
+        ET.indent(orig_tree, space=' ', level=0)
+        orig_tree.write(self.filename, encoding="utf-8", xml_declaration=True)
+
+        messagebox.showinfo("Uspjeh!", "Proces završio, rezultati su dostupni!")
 
 
 def main():
