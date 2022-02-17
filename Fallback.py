@@ -37,7 +37,7 @@ class Interface:
 
         self.c1 = Checkbutton(self.frame, text="DayAhead", variable=self.f310)
         self.c2 = Checkbutton(self.frame, text="Intraday", variable=self.f710)
-        self.d1 = Checkbutton(self.frame, text="Brisanje datoteka (2a_Input)", variable=self.delete)
+        self.d1 = Checkbutton(self.frame, text="Brisanje Input datoteka", variable=self.delete)
         self.c1.grid(row=1, column=1)
         self.c2.grid(row=1, column=2)
         self.d1.grid(row=2, column=1, columnspan=2, sticky=E, padx=40)
@@ -110,7 +110,11 @@ class Methods(Interface):
                 date_time = date_time.split('T')
                 creation.set('v', str(modified_date[0]) + 'T'  + date_time[1])
 
-            
+            if self.f710.get() == 1:
+                root.find('{*}ProcessType').set('v', 'A02')
+                root.find('{*}ReceiverIdentification').set('v', '10V1001C--00264T')
+
+
             tree.write(self.filename, encoding="utf-8", xml_declaration=True)
             
             messagebox.showinfo("Uspjeh!", "Datoteka: " + self.filename + "\n je uspješno stvorena u output mapi." + '\n\nZbog veličine, učitavanje podataka može potrajati nekoliko minuta.')
@@ -214,7 +218,7 @@ class Methods(Interface):
 
     def smanjenjeAllCNEC(self):
         
-        input_folder = self.output_path + '1a_Input_Zadrzavanje domene/original_file_3-4.xml'
+        input_folder = self.output_path + '1a_Input_Zadrzavanje domene/original_file_1.xml'
         output_folder = self.output_path + '3b_Output_Smanjenje za AMR na svim CNEC/'
 
         Methods.zadr_domene(self, input_folder, output_folder)
@@ -223,6 +227,9 @@ class Methods(Interface):
         root=orig_tree.getroot()
         root.set('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance')
         root.set('xmlns:xsd', 'http://www.w3.org/2001/XMLSchema')
+        root.remove(root.find('{*}AdjustmentValues'))
+        ET.SubElement(root, 'ReturnedBranches')
+        ET.SubElement(root, 'AdjustmentValues')
 
         avs = root.find('{*}AdjustmentValues')
 
@@ -278,13 +285,19 @@ class Methods(Interface):
         ET.indent(orig_tree, space=' ', level=0)
         orig_tree.write(self.filename, encoding="utf-8", xml_declaration=True)
 
+        #Brisanje datoteka u Input folderu
+        if self.delete.get() == 1:
+            for files in glob.glob1(dir, "*.*"):
+                os.remove(dir+files)
+
         messagebox.showinfo("Uspjeh!", "Proces završio, rezultati su dostupni!")
+
 
 
 
     def smanjenjePresolvedCNEC(self):
 
-        input_folder = self.output_path + '1a_Input_Zadrzavanje domene/original_file_3-4.xml'
+        input_folder = self.output_path + '1a_Input_Zadrzavanje domene/original_file_1.xml'
         output_folder = self.output_path + '4b_Output_Smanjenje za AMR na presolved CNEC/'
 
         Methods.zadr_domene(self, input_folder, output_folder)
@@ -293,7 +306,10 @@ class Methods(Interface):
         root=orig_tree.getroot()
         root.set('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance')
         root.set('xmlns:xsd', 'http://www.w3.org/2001/XMLSchema')
-
+        root.remove(root.find('{*}AdjustmentValues'))
+        ET.SubElement(root, 'ReturnedBranches')
+        ET.SubElement(root, 'AdjustmentValues')
+        
         avs = root.find('{*}AdjustmentValues')
 
         dir = self.output_path + '4a_Input_Smanjenje za AMR na presolved CNEC/'
@@ -346,6 +362,11 @@ class Methods(Interface):
 
         ET.indent(orig_tree, space=' ', level=0)
         orig_tree.write(self.filename, encoding="utf-8", xml_declaration=True)
+
+        #Brisanje datoteka u Input folderu
+        if self.delete.get() == 1:
+            for files in glob.glob1(dir, "*.*"):
+                os.remove(dir+files)
 
         messagebox.showinfo("Uspjeh!", "Proces završio, rezultati su dostupni!")
 
